@@ -1,205 +1,257 @@
+# app.py
 import streamlit as st
 import math
 
-# --- 1. Core Calculator Logic (Unchanged) ---
-
+# ── Calculator Core Logic ────────────────────────────────────────────────
 class ZhinaScientificCalculator:
-    """Core mathematical logic for the Zhina Scientific Calculator."""
-    # ... (All methods are the same: add, subtract, multiply, divide, power, sqrt, log, memory_add/recall/clear)
-    # ... (Retaining the original methods for brevity in the re-check)
     def __init__(self):
         if 'memory' not in st.session_state:
-            st.session_state.memory = 0
+            st.session_state.memory = 0.0
 
     def add(self, a, b): return a + b
     def subtract(self, a, b): return a - b
     def multiply(self, a, b): return a * b
+    
     def divide(self, a, b):
         if b == 0:
-            st.error("Error: Cannot divide by zero.")
+            st.error("Division by zero!")
             return None
         return a / b
 
+    def power(self, a, b): return a ** b
+    
     def square_root(self, x):
         if x < 0:
-            st.error("Error: Cannot take the square root of a negative number.")
+            st.error("Cannot calculate square root of negative number")
             return None
         return math.sqrt(x)
     
-    # ... (other scientific functions omitted for brevity in the re-check)
-
     def memory_add(self, value):
-        st.session_state.memory += value
+        try:
+            st.session_state.memory += float(value)
+        except (ValueError, TypeError):
+            st.warning("Cannot add to memory: invalid number")
+
     def memory_recall(self):
         return st.session_state.memory
+
     def memory_clear(self):
-        st.session_state.memory = 0
-        
-# --- 2. Calculation Function (Using eval() for simplicity, but acknowledge the risk) ---
+        st.session_state.memory = 0.0
 
-def calculate(full_expression):
-    """
-    ATTENTION: This function uses eval() for simplicity. 
-    REPLACE THIS with a safer library (like NumExpr) for production use.
-    """
-    # Simple string substitutions to handle basic scientific notation if needed
-    full_expression = full_expression.replace('^', '**')
 
+# ── Safe-ish expression evaluation ───────────────────────────────────────
+def safe_calculate(expression):
+    """Very simple and limited eval - still not 100% safe for public apps"""
+    expression = expression.replace('^', '**')  # allow ^ as power
+    
+    allowed_names = {
+        "math": math,
+        "sin": math.sin,
+        "cos": math.cos,
+        "tan": math.tan,
+        "sqrt": math.sqrt,
+        "log": math.log10,
+        "ln": math.log,
+        "pi": math.pi,
+        "e": math.e,
+        "abs": abs,
+        "factorial": math.factorial
+    }
+    
     try:
-        # **The Vulnerable Line - Use with Caution**
-        result = eval(full_expression) 
-        return str(result)
+        result = eval(expression, {"__builtins__": {}}, allowed_names)
+        if isinstance(result, complex):
+            return "Complex numbers not supported"
+        return float(result)
     except Exception as e:
-        return "Error"
+        return f"Error: {str(e)}"
 
 
-# --- 3. Streamlit Application Interface (Refined) ---
-
-# Initialize state variables
+# ── Session state initialization ─────────────────────────────────────────
 if 'current_input' not in st.session_state:
-    st.session_state.current_input = '0'
+    st.session_state.current_input = "0"
 if 'expression' not in st.session_state:
-    st.session_state.expression = ''
+    st.session_state.expression = ""
 if 'calc' not in st.session_state:
     st.session_state.calc = ZhinaScientificCalculator()
 
 
+# ── Button handler ───────────────────────────────────────────────────────
 def handle_button(key):
-    """Updates the input based on the button pressed."""
-    
-    # --- Clear/Equals ---
-    if key == 'C':
-        st.session_state.current_input = '0'
-        st.session_state.expression = ''
+    if key == "C":
+        st.session_state.current_input = "0"
+        st.session_state.expression = ""
         return
-    
-    if key == '=':
-        full_expression = st.session_state.expression + st.session_state.current_input
-        result_str = calculate(full_expression)
+
+    if key == "=":
+        full_expr = st.session_state.expression + st.session_state.current_input
+        result = safe_calculate(full_expr)
         
-        # Update display
-        if result_str == "Error":
-             st.session_state.expression = ''
+        if isinstance(result, str) and "Error" in result:
+            st.session_state.current_input = result
         else:
-             st.session_state.expression = full_expression + '='
-        
-        st.session_state.current_input = result_str
+            st.session_state.current_input = str(result)
+            st.session_state.expression = full_expr + " = "
         return
 
-    # --- Operators ---
-    if key in ['+', '-', '*', '/']:
-        # Append current number and operator to the expression
-        st.session_state.expression += st.session_state.current_input + key
-        st.session_state.current_input = '0'
+    # Operators
+    if key in ["+", "-", "×", "÷", "^"]:
+        op_map = {"×": "*", "÷": "/"}
+        op = op_map.get(key, key)
+        st.session_state.expression += st.session_state.current_input + op
+        st.session_state.current_input = "0"
         return
 
-    # --- Memory Keys ---
-    if key == 'MR':
+    # Memory operations
+    if key == "MR":
         st.session_state.current_input = str(st.session_state.calc.memory_recall())
         return
-    if key == 'M+':
+        
+    if key == "M+":
         try:
-            # Only add the current number input, not the whole expression result
-            st.session_state.calc.memory_add(float(st.session_state.current_input))
-            st.toast(f"Added {st.session_state.current_input} to Memory ({st.session_state.calc.memory_recall():.4f})")
-        except ValueError:
-             st.toast("Invalid value for M+")
+            st.session_state.calc.memory_add(st.session_state.current_input)
+            st.toast(f"Memory += {st.session_state.current_input}")
+        except:
+            st.toast("Cannot add to memory")
         return
-    if key == 'MC':
+        
+    if key == "MC":
         st.session_state.calc.memory_clear()
-        st.toast("Memory Cleared!")
+        st.toast("Memory cleared")
         return
 
-    # --- Scientific Functions (Directly call the method) ---
-    if key == 'sqrt':
+    # Square root (applied to current input)
+    if key == "√":
         try:
-            current_value = float(st.session_state.current_input)
-            result = st.session_state.calc.square_root(current_value)
-            
+            val = float(st.session_state.current_input)
+            result = st.session_state.calc.square_root(val)
             if result is not None:
                 st.session_state.current_input = str(result)
-                st.session_state.expression = f"sqrt({current_value})=" # Show function in expression
+                st.session_state.expression = f"√({val}) = "
         except ValueError:
             st.session_state.current_input = "Error"
         return
 
-    # --- Standard Keys (0-9, .) ---
-    if st.session_state.current_input == '0' or st.session_state.current_input == "Error":
-        # Clear '0' or 'Error' when a new digit is pressed
-        if key == '.':
-             st.session_state.current_input = '0.'
-        else:
-            st.session_state.current_input = key
-    elif key == '.' and '.' in st.session_state.current_input:
-        pass # Only one decimal point allowed
+    # Number / decimal input
+    if key == ".":
+        if "." not in st.session_state.current_input:
+            st.session_state.current_input += "."
     else:
-        st.session_state.current_input += key
+        # digits 0-9
+        if st.session_state.current_input == "0" or st.session_state.current_input.startswith("Error"):
+            st.session_state.current_input = key
+        else:
+            st.session_state.current_input += key
 
 
+# ── Page layout & styling ────────────────────────────────────────────────
 def main():
     st.set_page_config(page_title="Zhina Calculator", layout="centered")
-    
-    # ... (The custom CSS styling remains the same)
+
+    # Modern dark + neon accent style (you can change this!)
     st.markdown("""
-        <style>
-        /* General Streamlit tweaks for a calculator feel */
-        .stButton>button {
-            width: 100%;
-            height: 70px; /* Large buttons */
-            font-size: 24px;
-            margin: 2px 0;
-            border-radius: 8px;
-            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    <style>
+        .stApp {
+            background: #0d001a;
+        }
+        .calculator-display {
+            background: #1a0033;
+            border-radius: 12px;
+            padding: 18px 24px;
+            margin-bottom: 16px;
+            border: 1px solid #6600cc44;
+            min-height: 110px;
+        }
+        .expression {
+            color: #bb86fc88;
+            font-size: 1.1rem;
+            text-align: right;
+            min-height: 28px;
+            font-family: monospace;
+        }
+        .main-display {
+            color: #00eaff;
+            font-size: 3.4rem;
             font-weight: bold;
-        }
-        /* Style for the display area */
-        .expression-display {
             text-align: right;
-            font-size: 16px;
-            color: #888;
-            height: 20px;
+            font-family: 'Segoe UI', sans-serif;
+            text-shadow: 0 0 15px #00eaff44;
         }
-        .input-display {
-            text-align: right;
-            font-size: 48px;
-            margin-bottom: 10px;
-            height: 60px;
+        div.stButton > button {
+            width: 100%;
+            height: 74px;
+            font-size: 1.5rem;
+            margin: 3px 0;
+            border-radius: 12px;
+            background: #1e0038;
+            color: #e0d0ff;
+            border: 1px solid #6600cc66;
+            transition: all 0.15s;
         }
-        </style>
+        div.stButton > button:hover {
+            background: #3a0066;
+            border-color: #bb86fc;
+            box-shadow: 0 0 18px #bb86fc44;
+            transform: translateY(-1px);
+        }
+        div.stButton > button[kind="primary"] {
+            background: linear-gradient(45deg, #bb86fc, #00eaff);
+            color: #0d001a;
+            font-weight: bold;
+            border: none;
+        }
+    </style>
     """, unsafe_allow_html=True)
-    
+
     st.title("🧮 Zhina Scientific Calculator")
-    
-    # --- Display Area ---
-    st.markdown(f'<div class="expression-display">{st.session_state.expression}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="input-display">{st.session_state.current_input}</div>', unsafe_allow_html=True)
 
-    # Define the button layout
-    r1 = ['MC', 'MR', 'M+', 'sqrt']
-    r2 = ['C', '/', '*', '-'] 
-    r3 = ['7', '8', '9', '+']
-    r4 = ['4', '5', '6']
-    r5 = ['1', '2', '3']
-    r6 = ['0', '.', '=']
+    # Display area
+    with st.container():
+        st.markdown(
+            f"""
+            <div class="calculator-display">
+                <div class="expression">{st.session_state.expression}</div>
+                <div class="main-display">{st.session_state.current_input}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-    # --- Button Grid ---
-    
-    # ... (The button layout logic is the same: R1, R2, R3, R4, R5, R6)
-    for row_keys in [r1, r2, r3, r4, r5]:
-        col1, col2, col3, col4 = st.columns(4)
-        cols = [col1, col2, col3, col4]
-        for i, key in enumerate(row_keys):
-            cols[i].button(key, key=key, on_click=handle_button, args=(key,))
-            
-    # Final Row (R6) - '0', '.', '='
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1]) 
-    col1.button('0', key='0', on_click=handle_button, args=('0',))
-    col2.button('.', key='.', on_click=handle_button, args=('.',))
-    col4.button('=', key='=', on_click=handle_button, args=('=',)) 
-    
-    # Display Memory Status
+    # Button layout
+    buttons = [
+        ["MC", "MR", "M+", "√"],
+        ["C", "÷", "×", "-"],
+        ["7", "8", "9", "+"],
+        ["4", "5", "6", "^"],
+        ["1", "2", "3", "="],
+        ["0", ".", "="]  # last row special
+    ]
+
+    for i, row in enumerate(buttons):
+        cols = st.columns([1]*4 if i < 5 else [2,1,1])
+        
+        for j, key in enumerate(row):
+            if i == 5 and j == 0:  # wide 0 button
+                cols[0].button("0", key="btn0", on_click=handle_button, args=("0",))
+            elif i == 5 and j == 1:  # decimal
+                cols[1].button(".", key="btn.", on_click=handle_button, args=(".",))
+            elif i == 5 and j == 2:  # skip
+                continue
+            else:
+                # normal buttons
+                is_equal = (key == "=")
+                cols[j if i<5 else j+1 if j>1 else j].button(
+                    key,
+                    key=f"btn{key}",
+                    on_click=handle_button,
+                    args=(key,),
+                    type="primary" if is_equal else "secondary"
+                )
+
+    # Memory status
     st.markdown("---")
-    st.info(f"Memory (MR/M+): **{st.session_state.calc.memory_recall():.4f}**")
+    st.caption(f"Memory: **{st.session_state.calc.memory_recall():.6g}**")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
