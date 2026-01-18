@@ -152,53 +152,33 @@ def main():
     st.markdown("""
     <style>
         .stApp {
-            background: #0d001a;
-        }
-        .calculator-display {
-            background: #1a0033;
-            border-radius: 12px;
-            padding: 18px 24px;
-            margin-bottom: 16px;
-            border: 1px solid #6600cc44;
-            min-height: 110px;
-        }
-        .expression {
-            color: #bb86fc88;
-            font-size: 1.1rem;
-            text-align: right;
-            min-height: 28px;
-            font-family: monospace;
-        }
-        .main-display {
-            color: #00eaff;
-            font-size: 3.4rem;
-            font-weight: bold;
-            text-align: right;
-            font-family: 'Segoe UI', sans-serif;
-            text-shadow: 0 0 15px #00eaff44;
-        }
-        div.stButton > button {
-            width: 100%;
-            height: 74px;
-            font-size: 1.5rem;
-            margin: 3px 0;
-            border-radius: 12px;
-            background: #1e0038;
-            color: #e0d0ff;
-            border: 1px solid #6600cc66;
-            transition: all 0.15s;
-        }
-        div.stButton > button:hover {
-            background: #3a0066;
-            border-color: #bb86fc;
-            box-shadow: 0 0 18px #bb86fc44;
-            transform: translateY(-1px);
-        }
-        div.stButton > button[kind="primary"] {
-            background: linear-gradient(45deg, #bb86fc, #00eaff);
-            color: #0d001a;
-            font-weight: bold;
-            border: none;
+            
+
+.stApp, .calculator-display, .main-display {
+    direction: ltr !important;          /* Force left-to-right */
+    unicode-bidi: plaintext !important; /* Prevent RTL flipping */
+    text-align: right !important;
+}
+
+.main-display {
+    color: #00eaff;
+    font-size: 3.4rem;
+    font-weight: bold;
+    text-align: right !important;
+    direction: ltr !important;
+    unicode-bidi: embed !important;
+    white-space: nowrap !important;     /* Prevent wrapping/line breaks */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Segoe UI', 'Courier New', monospace;
+    letter-spacing: 1px;
+}
+
+.calculator-display {
+    direction: ltr !important;
+    text-align: right !important;
+    min-width: 100%;                    /* Force full width */
+}
         }
     </style>
     """, unsafe_allow_html=True)
